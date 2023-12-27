@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import axios from 'axios';
+import MeetingMinutes from './MeetingMinutes';
 import './App.css';
 
 const App = () => {
@@ -79,12 +80,7 @@ const App = () => {
       {status && <p className="status">{status}</p>}
 
       {/* Display Meeting Minutes */}
-      {meetingMinutes && (
-        <div className="meeting-minutes">
-          <h2>Meeting Minutes</h2>
-          <pre>{JSON.stringify(meetingMinutes, null, 2)}</pre>
-        </div>
-      )}
+      {meetingMinutes && <MeetingMinutes minutes={meetingMinutes} />}
 
       {/* Display Download PDF Button */}
       {pdfUrl && (
