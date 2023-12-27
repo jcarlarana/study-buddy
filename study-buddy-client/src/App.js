@@ -5,6 +5,7 @@ import './App.css';
 const App = () => {
   const [file, setFile] = useState(null);
   const [status, setStatus] = useState('');
+  const [meetingMinutes, setMeetingMinutes] = useState('');
   const [pdfUrl, setPdfUrl] = useState('');
 
   const handleFileChange = (event) => {
@@ -26,6 +27,7 @@ const App = () => {
       const pdfUrl = pdfResponse.data.pdfUrl;
 
       setStatus('Process Completed!');
+      setMeetingMinutes(minutes);
       setPdfUrl(pdfUrl);
     } catch (error) {
       console.error('Error during process:', error);
@@ -54,10 +56,15 @@ const App = () => {
       filename: 'output/meeting_minutes.pdf',
       minutes: minutes,
     };
-  
+
     return axios.post('http://localhost:5000/save-as-pdf', data, {
       headers: { 'Content-Type': 'application/json' },
     });
+  };
+
+  const handleDownloadPdf = async () => {
+    // You can trigger the download here
+    window.open(pdfUrl, '_blank');
   };
 
   return (
@@ -71,9 +78,19 @@ const App = () => {
       {/* Display status */}
       {status && <p className="status">{status}</p>}
 
-      {/* Display PDF */}
+      {/* Display Meeting Minutes */}
+      {meetingMinutes && (
+        <div className="meeting-minutes">
+          <h2>Meeting Minutes</h2>
+          <pre>{JSON.stringify(meetingMinutes, null, 2)}</pre>
+        </div>
+      )}
+
+      {/* Display Download PDF Button */}
       {pdfUrl && (
-        <iframe title="Generated PDF" src={pdfUrl} className="pdf-iframe" width="600" height="400"></iframe>
+        <button className="download-pdf-button" onClick={handleDownloadPdf}>
+          Download PDF
+        </button>
       )}
     </div>
   );
