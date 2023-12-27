@@ -50,7 +50,12 @@ const App = () => {
   };
 
   const saveAsPdf = async (minutes) => {
-    return axios.post('http://localhost:5000/save-as-pdf', { minutes }, {
+    const data = {
+      filename: 'output/meeting_minutes.pdf',
+      minutes: minutes,
+    };
+  
+    return axios.post('http://localhost:5000/save-as-pdf', data, {
       headers: { 'Content-Type': 'application/json' },
     });
   };
