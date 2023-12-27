@@ -188,13 +188,16 @@ def transcribe_endpoint():
 def meeting_minutes_endpoint():
     try:
         transcription = request.form.get('transcription')
+        print('Request Payload:', transcription)  # Log the payload
+
         if not transcription:
             return jsonify({'error': 'Transcription is missing'}), 400
-
+        
         minutes = meeting_minutes(transcription)
+
         return jsonify(minutes)
     except Exception as e:
-        logger.error(f"Error during meeting minutes endpoint: {str(e)}")
+        print(f"Error during meeting minutes endpoint: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
 
 @app.route('/generate', methods=['POST'])
