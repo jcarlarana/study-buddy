@@ -1,0 +1,53 @@
+body {
+  background-color: #1e1e1e; /* Dark background color */
+  color: #d4d4d4; /* Light text color */
+  font-family: 'Arial', sans-serif;
+}
+
+.app-container {
+  max-width: 800px;
+  margin: 50px auto;
+  padding: 20px;
+  background-color: #2b2b2b; /* Dark container background color */
+  border-radius: 8px;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+}
+
+.app-title {
+  color: #e07d00; /* Amber title color */
+}
+
+.file-input {
+  margin-bottom: 10px;
+}
+
+.generate-button {
+  padding: 10px;
+  background-color: #e07d00; /* Amber button color */
+  color: #1e1e1e; /* Dark button text color */
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.generate-button:hover {
+  background-color: #ff9800; /* Lighter amber on hover */
+}
+
+.status {
+  margin: 10px 0;
+}
+
+.pdf-container {
+  margin-top: 20px;
+}
+
+.pdf-title {
+  color: #e07d00; /* Amber PDF title color */
+}
+
+.pdf-iframe {
+  border: none;
+  margin-top: 10px;
+}
+
