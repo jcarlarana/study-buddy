@@ -1,4 +1,5 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_file
+from flask_cors import CORS 
 import os
 import logging
 from openai import OpenAI
@@ -7,9 +8,11 @@ from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
-
+from werkzeug.utils import secure_filename
+from flask import send_from_directory
 
 app = Flask(__name__)
+CORS(app)
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -18,7 +21,6 @@ logger = logging.getLogger(__name__)
 # Load OpenAI API key from environment variable
 openai_api_key = os.getenv("OPENAI_API_KEY")
 client = OpenAI(api_key=openai_api_key)
-
 
 def transcribe_audio(audio_file_path):
     with open(audio_file_path, 'rb') as audio_file:
@@ -157,13 +159,23 @@ def save_as_pdf_endpoint():
         logger.error(f"Error during save as PDF endpoint: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
 
-
 @app.route('/transcribe', methods=['POST'])
 def transcribe_endpoint():
     try:
         # Assuming React application sends the audio file as a form-data POST request
         audio_file = request.files['audio']
-        transcription = transcribe_audio(audio_file)
+
+        # Save the uploaded file to a temporary location
+        filename = secure_filename(audio_file.filename)
+        audio_file_path = os.path.join("temp_audio", filename)
+        audio_file.save(audio_file_path)
+
+        # Call the transcribe_audio function with the file path
+        transcription = transcribe_audio(audio_file_path)
+
+        # Optionally, you can remove the temporary file after transcription
+        os.remove(audio_file_path)
+
         if transcription:
             return jsonify({'transcription': transcription})
         else:
@@ -185,12 +197,23 @@ def meeting_minutes_endpoint():
         logger.error(f"Error during meeting minutes endpoint: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
 
+@app.route('/generate', methods=['POST'])
+def generate_endpoint():
+    try:
+        audio_file = request.files['audio']
+        transcription = transcribe_audio(audio_file)
+        minutes = meeting_minutes(transcription)
+        logger.info(f"Generated meeting minutes: {minutes}")
+        save_as_pdf(minutes, 'output/lecture_notes.pdf')
+        return jsonify({'success': True})
+    except Exception as e:
+        logger.error(f"Error during generate endpoint: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
 
-audio_file_path = "data/Earningscall.ogg"
-transcription = transcribe_audio(audio_file_path)
-minutes = meeting_minutes(transcription)
-print(minutes)
-save_as_pdf(minutes, 'output/lecture_notes.pdf')
+@app.route('/output/<filename>')
+def download_file(filename):
+    return send_from_directory('output', filename)
 
-#if __name__ == '__main__':
-    #app.run(debug=True)
+
+if __name__ == '__main__':
+    app.run(debug=True)
