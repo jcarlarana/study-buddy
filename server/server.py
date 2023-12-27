@@ -146,15 +146,16 @@ def save_as_pdf(minutes, filename):
 @app.route('/save-as-pdf', methods=['POST'])
 def save_as_pdf_endpoint():
     try:
-        minutes = request.get_json()
-        filename = request.form.get('filename', 'output/meeting_minutes.pdf')
+        data = request.get_json()
+        filename = data.get('filename', 'output/meeting_minutes.pdf')
+        minutes = data.get('minutes')
 
         if not minutes:
             return jsonify({'error': 'Minutes data is missing'}), 400
 
         save_as_pdf(minutes, filename)
 
-        return send_file(filename, as_attachment=True)
+        return jsonify({'pdfUrl': f'/output/{filename}'}), 200
     except Exception as e:
         logger.error(f"Error during save as PDF endpoint: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
