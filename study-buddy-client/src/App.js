@@ -63,8 +63,13 @@ const App = () => {
 
   return (
     <div className="app-container">
-      <input type="file" accept="audio/*" onChange={handleFileChange} />
+      {/* Header */}
+      <h1 className="app-title">Study Buddy</h1>
 
+      {/* File input */}
+      <input type="file" accept="audio/*" onChange={handleFileChange} className="file-input" />
+
+      {/* Generate button */}
       <button className="generate-button" onClick={handleGenerate}>
         Generate
       </button>
@@ -74,7 +79,6 @@ const App = () => {
 
       {/* Display Meeting Minutes */}
       {meetingMinutes && <MeetingMinutes minutes={meetingMinutes} />}
-
     </div>
   );
 };
