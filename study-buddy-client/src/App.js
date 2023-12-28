@@ -6,8 +6,7 @@ import './App.css';
 const App = () => {
   const [file, setFile] = useState(null);
   const [status, setStatus] = useState('');
-  const [meetingMinutes, setMeetingMinutes] = useState('');
-  const [pdfUrl, setPdfUrl] = useState('');
+  const [meetingMinutes, setMeetingMinutes] = useState(null);
 
   const handleFileChange = (event) => {
     setFile(event.target.files[0]);
@@ -23,13 +22,8 @@ const App = () => {
       const minutesResponse = await generateMeetingMinutes(transcription);
       const minutes = minutesResponse.data;
 
-      setStatus('Saving PDF...');
-      const pdfResponse = await saveAsPdf(minutes);
-      const pdfUrl = pdfResponse.data.pdfUrl;
-
-      setStatus('Process Completed!');
       setMeetingMinutes(minutes);
-      setPdfUrl(pdfUrl);
+      setStatus('Process Completed!');
     } catch (error) {
       console.error('Error during process:', error);
       setStatus('Error Occurred');
@@ -46,26 +40,25 @@ const App = () => {
   };
 
   const generateMeetingMinutes = async (transcription) => {
-    const formData = new FormData();
-    formData.append('transcription', transcription);
+    try {
+      const formData = new FormData();
+      formData.append('transcription', transcription);
 
-    return axios.post('http://localhost:5000/meeting-minutes', formData);
-  };
-
-  const saveAsPdf = async (minutes) => {
-    const data = {
-      filename: 'output/meeting_minutes.pdf',
-      minutes: minutes,
-    };
-
-    return axios.post('http://localhost:5000/save-as-pdf', data, {
-      headers: { 'Content-Type': 'application/json' },
-    });
+      return axios.post('http://localhost:5000/meeting-minutes', formData);
+    } catch (error) {
+      console.error('Error during meeting minutes generation:', error);
+      throw error; // Rethrow the error to be caught by the caller
+    }
   };
 
   const handleDownloadPdf = async () => {
-    // You can trigger the download here
-    window.open(pdfUrl, '_blank');
+    try {
+      const pdfResponse = null;
+      const pdfUrl = pdfResponse.data.url;
+      window.open(pdfUrl, '_blank');
+    } catch (error) {
+      console.error('Error during download PDF:', error);
+    }
   };
 
   return (
@@ -82,12 +75,6 @@ const App = () => {
       {/* Display Meeting Minutes */}
       {meetingMinutes && <MeetingMinutes minutes={meetingMinutes} />}
 
-      {/* Display Download PDF Button */}
-      {pdfUrl && (
-        <button className="download-pdf-button" onClick={handleDownloadPdf}>
-          Download PDF
-        </button>
-      )}
     </div>
   );
 };
