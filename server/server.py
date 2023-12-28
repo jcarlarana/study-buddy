@@ -12,6 +12,8 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from werkzeug.utils import secure_filename
 from flask import send_from_directory
 
+from backoff import on_exception, expo, constant
+
 app = Flask(__name__)
 CORS(app)
 
@@ -39,9 +41,11 @@ def chunk_text(text, chunk_size):
     return [text[i:i + chunk_size] for i in range(0, len(text), chunk_size)]
 
 # Function to generate a cohesive passage from multiple sections
+@on_exception(expo, Exception, max_tries=5, factor=2, logger=logging)
 def generate_cohesive_passage(sections):
     prompt = (
-        "You are an AI language model trained to generate cohesive passages. "
+        "You are an AI language model trained to generate cohesive passages."
+        "You always use the correct formatting such as paragraphs, code blocks, scientific notation, bullet list and numbered lists, etc."
         "Given the following sections, create a single coherent passage that "
         "captures the main points and information."
     )
@@ -63,31 +67,9 @@ def generate_cohesive_passage(sections):
     return response.choices[0].message.content
 
 # Function to generate meeting minutes for a transcription chunk
-def meeting_minutes_chunk(transcription_chunk):
-    abstract_summary = abstract_summary_extraction(transcription_chunk)
-    key_points = key_points_extraction(transcription_chunk)
-    action_items = action_item_extraction(transcription_chunk)
-    sentiment = sentiment_analysis(transcription_chunk)
-
-    # Generate cohesive passage
-    cohesive_passage_sections = {
-        'Abstract Summary': abstract_summary,
-        'Key Points': key_points,
-        'Action Items': action_items,
-        'Sentiment Analysis': sentiment
-        # Add more sections as needed
-    }
-    cohesive_passage = generate_cohesive_passage(cohesive_passage_sections)
-
-    return {
-        'Abstract Summary': abstract_summary,
-        'Key Points': key_points,
-        'Action Items': action_items,
-        'Sentiment Analysis': sentiment,
-        'Cohesive Passage': cohesive_passage
-    }
 
 # Function to extract abstract summary from a transcription
+@on_exception(expo, Exception, max_tries=5, factor=2, logger=logging)
 def abstract_summary_extraction(transcription):
     response = client.chat.completions.create(
         model="gpt-4",
@@ -100,6 +82,7 @@ def abstract_summary_extraction(transcription):
     return response.choices[0].message.content
 
 # Function to extract key points from a transcription
+@on_exception(expo, Exception, max_tries=5, factor=2, logger=logging)
 def key_points_extraction(transcription):
     response = client.chat.completions.create(
         model="gpt-4",
@@ -112,6 +95,7 @@ def key_points_extraction(transcription):
     return response.choices[0].message.content
 
 # Function to extract action items from a transcription
+@on_exception(expo, Exception, max_tries=5, factor=2, logger=logging)
 def action_item_extraction(transcription):
     response = client.chat.completions.create(
         model="gpt-4",
@@ -124,6 +108,7 @@ def action_item_extraction(transcription):
     return response.choices[0].message.content
 
 # Function to perform sentiment analysis on a transcription
+@on_exception(expo, Exception, max_tries=5, factor=2, logger=logging)
 def sentiment_analysis(transcription):
     response = client.chat.completions.create(
         model="gpt-4",
@@ -219,7 +204,7 @@ def transcribe_endpoint():
 def meeting_minutes_endpoint():
     try:
         transcription = request.form.get('transcription')
-        chunk_size = int(request.form.get('chunk_size', 20000))  # Default chunk size is 20000 characters
+        chunk_size = int(request.form.get('chunk_size', 50000))  # Default chunk size is 20000 characters
 
         if not transcription:
             return jsonify({'error': 'Transcription is missing'}), 400
