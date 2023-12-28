@@ -1,4 +1,5 @@
 from flask import Flask, request, jsonify, send_file
+from flask_caching import Cache
 from flask_cors import CORS 
 import os
 import logging
@@ -14,6 +15,10 @@ from flask import send_from_directory
 app = Flask(__name__)
 CORS(app)
 
+# Configure Flask-Caching
+cache = Cache(app, config={"CACHE_TYPE": "simple"})
+#cache.clear()
+
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -22,92 +27,115 @@ logger = logging.getLogger(__name__)
 openai_api_key = os.getenv("OPENAI_API_KEY")
 client = OpenAI(api_key=openai_api_key)
 
+# Function to transcribe audio
+@cache.memoize(timeout=3600)  
 def transcribe_audio(audio_file_path):
     with open(audio_file_path, 'rb') as audio_file:
         transcription = client.audio.transcriptions.create(model="whisper-1", file=audio_file)
     return transcription.text
 
-def meeting_minutes(transcription):
-    abstract_summary = abstract_summary_extraction(transcription)
-    key_points = key_points_extraction(transcription)
-    action_items = action_item_extraction(transcription)
-    sentiment = sentiment_analysis(transcription)
+# Function to split text into chunks
+def chunk_text(text, chunk_size):
+    return [text[i:i + chunk_size] for i in range(0, len(text), chunk_size)]
+
+# Function to generate a cohesive passage from multiple sections
+def generate_cohesive_passage(sections):
+    prompt = (
+        "You are an AI language model trained to generate cohesive passages. "
+        "Given the following sections, create a single coherent passage that "
+        "captures the main points and information."
+    )
+
+    # Concatenate sections into the prompt
+    for section_name, section_content in sections.items():
+        prompt += f"\n\n{section_name}:\n{section_content}"
+
+    response = client.chat.completions.create(
+        model="gpt-4",
+        temperature=0,
+        max_tokens=400,  # Adjust max_tokens based on your desired response length
+        messages=[
+            {"role": "system", "content": prompt},
+            {"role": "user", "content": ""}  # Empty user message to trigger the system response
+        ]
+    )
+
+    return response.choices[0].message.content
+
+# Function to generate meeting minutes for a transcription chunk
+def meeting_minutes_chunk(transcription_chunk):
+    abstract_summary = abstract_summary_extraction(transcription_chunk)
+    key_points = key_points_extraction(transcription_chunk)
+    action_items = action_item_extraction(transcription_chunk)
+    sentiment = sentiment_analysis(transcription_chunk)
+
+    # Generate cohesive passage
+    cohesive_passage_sections = {
+        'Abstract Summary': abstract_summary,
+        'Key Points': key_points,
+        'Action Items': action_items,
+        'Sentiment Analysis': sentiment
+        # Add more sections as needed
+    }
+    cohesive_passage = generate_cohesive_passage(cohesive_passage_sections)
+
     return {
-        'abstract_summary': abstract_summary,
-        'key_points': key_points,
-        'action_items': action_items,
-        'sentiment': sentiment
+        'Abstract Summary': abstract_summary,
+        'Key Points': key_points,
+        'Action Items': action_items,
+        'Sentiment Analysis': sentiment,
+        'Cohesive Passage': cohesive_passage
     }
 
+# Function to extract abstract summary from a transcription
 def abstract_summary_extraction(transcription):
     response = client.chat.completions.create(
         model="gpt-4",
         temperature=0,
         messages=[
-            {
-                "role": "system",
-                "content": "You are a highly skilled AI trained in language comprehension and summarization. I would like you to read the following text and summarize it into a concise abstract paragraph. Aim to retain the most important points, providing a coherent and readable summary that could help a person understand the main points of the discussion without needing to read the entire text. Please avoid unnecessary details or tangential points."
-            },
-            {
-                "role": "user",
-                "content": transcription
-            }
+            {"role": "system", "content": "You are a highly skilled AI trained in language comprehension and summarization. I would like you to read the following text and summarize it into a concise abstract paragraph. Aim to retain the most important points, providing a coherent and readable summary that could help a person understand the main points of the discussion without needing to read the entire text. Please avoid unnecessary details or tangential points."},
+            {"role": "user", "content": transcription}
         ]
     )
     return response.choices[0].message.content
 
-
+# Function to extract key points from a transcription
 def key_points_extraction(transcription):
     response = client.chat.completions.create(
         model="gpt-4",
         temperature=0,
         messages=[
-            {
-                "role": "system",
-                "content": "You are a proficient AI with a specialty in distilling information into key points. Based on the following text, identify and list the main points that were discussed or brought up. These should be the most important ideas, findings, or topics that are crucial to the essence of the discussion. Your goal is to provide a list that someone could read to quickly understand what was talked about."
-            },
-            {
-                "role": "user",
-                "content": transcription
-            }
+            {"role": "system", "content": "You are a proficient AI with a specialty in distilling information into key points. Based on the following text, identify and list the main points that were discussed or brought up. These should be the most important ideas, findings, or topics that are crucial to the essence of the discussion. Your goal is to provide a list that someone could read to quickly understand what was talked about."},
+            {"role": "user", "content": transcription}
         ]
     )
     return response.choices[0].message.content
 
+# Function to extract action items from a transcription
 def action_item_extraction(transcription):
     response = client.chat.completions.create(
         model="gpt-4",
         temperature=0,
         messages=[
-            {
-                "role": "system",
-                "content": "You are an AI expert in analyzing conversations and extracting action items. Please review the text and identify any tasks, assignments, or actions that were agreed upon or mentioned as needing to be done. These could be tasks assigned to specific individuals, or general actions that the group has decided to take. Please list these action items clearly and concisely."
-            },
-            {
-                "role": "user",
-                "content": transcription
-            }
+            {"role": "system", "content": "You are an AI expert in analyzing conversations and extracting action items. Please review the text and identify any tasks, assignments, or actions that were agreed upon or mentioned as needing to be done. These could be tasks assigned to specific individuals, or general actions that the group has decided to take. Please list these action items clearly and concisely."},
+            {"role": "user", "content": transcription}
         ]
     )
     return response.choices[0].message.content
 
+# Function to perform sentiment analysis on a transcription
 def sentiment_analysis(transcription):
     response = client.chat.completions.create(
         model="gpt-4",
         temperature=0,
         messages=[
-            {
-                "role": "system",
-                "content": "As an AI with expertise in language and emotion analysis, your task is to analyze the sentiment of the following text. Please consider the overall tone of the discussion, the emotion conveyed by the language used, and the context in which words and phrases are used. Indicate whether the sentiment is generally positive, negative, or neutral, and provide brief explanations for your analysis where possible."
-            },
-            {
-                "role": "user",
-                "content": transcription
-            }
+            {"role": "system", "content": "As an AI with expertise in language and emotion analysis, your task is to analyze the sentiment of the following text. Please consider the overall tone of the discussion, the emotion conveyed by the language used, and the context in which words and phrases are used. Indicate whether the sentiment is generally positive, negative, or neutral, and provide brief explanations for your analysis where possible."},
+            {"role": "user", "content": transcription}
         ]
     )
     return response.choices[0].message.content
 
+# Function to save meeting minutes as PDF
 def save_as_pdf(minutes, filename):
     pdf_filename = filename
 
@@ -143,6 +171,7 @@ def save_as_pdf(minutes, filename):
     # Build the PDF document
     pdf.build(pdf_content)
 
+# Endpoint to save meeting minutes as PDF
 @app.route('/save-as-pdf', methods=['POST'])
 def save_as_pdf_endpoint():
     try:
@@ -160,6 +189,7 @@ def save_as_pdf_endpoint():
         logger.error(f"Error during save as PDF endpoint: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
 
+# Endpoint to transcribe audio
 @app.route('/transcribe', methods=['POST'])
 def transcribe_endpoint():
     try:
@@ -189,35 +219,67 @@ def transcribe_endpoint():
 def meeting_minutes_endpoint():
     try:
         transcription = request.form.get('transcription')
-        print('Request Payload:', transcription)  # Log the payload
+        chunk_size = int(request.form.get('chunk_size', 20000))  # Default chunk size is 20000 characters
 
         if not transcription:
             return jsonify({'error': 'Transcription is missing'}), 400
+
+        # Split the transcription into chunks
+        transcription_chunks = chunk_text(transcription, chunk_size)
+
+        # Initialize lists to store results for each category
+        abstract_summary_list = []
+        key_points_list = []
+        action_items_list = []
+        sentiment_list = []
+
+        # Process each chunk separately
+        for i, chunk in enumerate(transcription_chunks):
+            # Extract information directly in the loop
+            abstract_summary = abstract_summary_extraction(chunk)
+            key_points = key_points_extraction(chunk)
+            action_items = action_item_extraction(chunk)
+            sentiment = sentiment_analysis(chunk)
+
+            # Append the chunks into a list for each category
+            abstract_summary_list.append(abstract_summary)
+            key_points_list.append(key_points)
+            action_items_list.append(action_items)
+            sentiment_list.append(sentiment)
+
+        # Join the lists into single strings for each category
+        cohesive_abstract_summary = generate_cohesive_passage({'Abstract Summary': '\n'.join(abstract_summary_list)})
+        cohesive_key_points = generate_cohesive_passage({'Key Points': '\n'.join(key_points_list)})
+        cohesive_action_items = generate_cohesive_passage({'Action Items': '\n'.join(action_items_list)})
+        cohesive_sentiment = generate_cohesive_passage({'Sentiment Analysis': '\n'.join(sentiment_list)})
+
+        # Return only the cohesive passages
+        final_results = {
+            'Abstract Summary': cohesive_abstract_summary.strip(),
+            'Key Points': cohesive_key_points.strip(),
+            'Action Items': cohesive_action_items.strip(),
+            'Sentiment Analysis': cohesive_sentiment.strip(),
+        }
+
+        logger.info(f"Generated meeting minutes: {final_results}")
+        save_as_pdf(final_results, 'output/lecture_notes.pdf')
+        return jsonify(final_results)
+
+    except Exception as e:
+        logger.error(f"Error during meeting minutes endpoint: {str(e)}")
         
-        minutes = meeting_minutes(transcription)
+        # Print the traceback to the console for debugging
+        import traceback
+        traceback.print_exc()
 
-        return jsonify(minutes)
-    except Exception as e:
-        print(f"Error during meeting minutes endpoint: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
 
-@app.route('/generate', methods=['POST'])
-def generate_endpoint():
-    try:
-        audio_file = request.files['audio']
-        transcription = transcribe_audio(audio_file)
-        minutes = meeting_minutes(transcription)
-        logger.info(f"Generated meeting minutes: {minutes}")
-        save_as_pdf(minutes, 'output/lecture_notes.pdf')
-        return jsonify({'success': True})
-    except Exception as e:
-        logger.error(f"Error during generate endpoint: {str(e)}")
-        return jsonify({'error': 'Internal server error'}), 500
-
+# Endpoint to download generated PDF
 @app.route('/output/<filename>')
 def download_file(filename):
     return send_from_directory('output', filename)
 
-
+# Run the Flask app
 if __name__ == '__main__':
     app.run(debug=True)
+
